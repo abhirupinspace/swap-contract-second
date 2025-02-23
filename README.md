@@ -1,192 +1,160 @@
-# Token Tax Collection and Swap Program
+# Token to SOL Swap Program
 
-A Solana smart contract built with Anchor that implements token tax collection and automated swapping using Raydium's CPMM pools.
+A Solana smart contract that swaps Token-2022 tokens for SOL using Raydium's CPMM (Constant Product Market Maker) pools.
 
 ## Features
+- Swap Token-2022 tokens for SOL
+- Uses Raydium liquidity pools
+- Slippage protection
+- Event logging
 
-- **Tax Collection**: Collects a configurable tax (default 5%) on token transfers
-- **Automated Swapping**: Swaps collected tokens for SOL using Raydium
-- **Token-2022 Support**: Full support for Token-2022 extensions
-- **Admin Controls**: 
-  - Fee updates
-  - Emergency withdrawals
-  - Program pause/unpause
-- **Security Features**:
-  - Input validation
-  - Error handling
-  - Event logging
-  - Access control
+## Contract Address
+- Program ID: `9qxgVVgdrRCTP6BvYrDePWhk9FV5gxzggp79HDo4xkwo`
+- Raydium Program ID: `675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8`
 
-## Prerequisites
+## Setup & Installation
 
-- Rust 1.70.0 or later
-- Solana Tool Suite 1.16.0 or later
-- Anchor Framework 0.30.0 or later
-- Node.js 16.0.0 or later
-
-## Installation
-
-1. Clone the repository:
 ```bash
-git clone 
-cd 
-```
+# Install dependencies
+npm install
 
-2. Install dependencies:
-```bash
-yarn install
-```
-
-3. Build the program:
-```bash
+# Build the program
 anchor build
+
+# Deploy
+anchor deploy
 ```
 
-## Program Accounts
+## Usage
 
-### ProgramState
-- Admin public key
-- Fee basis points
-- Pause status
+### Initialize Swap Wallet
+```typescript
+// Create Token-2022 account for the swap wallet PDA
+const [swapWalletPDA] = await PublicKey.findProgramAddress(
+    [Buffer.from("swap_wallet")],
+    programId
+);
 
-### TaxWallet (PDA)
-- Holds collected tax tokens
-- Seed: "tax_wallet"
+await createAssociatedTokenAccount(
+    connection,
+    payer,
+    tokenMint,
+    swapWalletPDA,
+    TOKEN_2022_PROGRAM_ID
+);
+```
 
-## Instructions
-
-### 1. Initialize
+### Execute Swap
 ```typescript
 await program.methods
-  .initialize()
-  .accounts({
-    state: statePDA,
-    admin: adminWallet.publicKey,
-    systemProgram: SystemProgram.programId,
-  })
-  .rpc();
+    .swapTokensForSol(
+        new BN(amount),           // Amount of tokens to swap
+        new BN(minimumSolAmount)  // Minimum SOL to receive
+    )
+    .accounts({
+        user: wallet.publicKey,
+        tokenAccount: userTokenAccount,
+        tokenMint: tokenMint,
+        swapWallet: swapWalletPDA,
+        ammId: ammId,
+        ammAuthority: ammAuthority,
+        sourceInfo: sourceInfo,
+        destinationInfo: destinationInfo,
+        poolTokenCoinAccount: poolCoinAccount,
+        poolTokenPcAccount: poolPcAccount,
+        serumProgramId: serumProgramId,
+        serumMarket: serumMarket,
+        serumBids: serumBids,
+        serumAsks: serumAsks,
+        serumEventQueue: serumEventQueue,
+        serumCoinVaultAccount: serumCoinVault,
+        serumPcVaultAccount: serumPcVault,
+        serumVaultSigner: serumVaultSigner,
+        receiver: receiverAccount,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+    })
+    .rpc();
 ```
 
-### 2. Collect Tax
-```typescript
-await program.methods
-  .collectTax(new BN(amount))
-  .accounts({
-    state: statePDA,
-    user: userWallet.publicKey,
-    userTokenAccount: userATA,
-    taxWallet: taxWalletPDA,
-    tokenMint: tokenMint,
-    tokenProgram: TOKEN_2022_PROGRAM_ID,
-    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-    systemProgram: SystemProgram.programId,
-  })
-  .rpc();
-```
+## Required Accounts
 
-### 3. Swap Tokens for SOL
-```typescript
-await program.methods
-  .swapTokensForSol(
-    new BN(minimumSolAmount),
-    new BN(deadline)
-  )
-  .accounts({
-    state: statePDA,
-    taxWallet: taxWalletPDA,
-    ammId: ammId,
-    ammAuthority: ammAuthority,
-    // ... other required accounts
-  })
-  .rpc();
-```
+### User Accounts
+- `user`: Signer executing the swap
+- `tokenAccount`: User's token account (source of tokens)
+- `tokenMint`: Token mint address
+- `receiver`: Account to receive SOL
 
-### 4. Admin Functions
-```typescript
-// Update fee
-await program.methods
-  .updateFee(new BN(newFeeBps))
-  .accounts({
-    state: statePDA,
-    admin: adminWallet.publicKey,
-  })
-  .rpc();
+### Program PDAs
+- `swapWallet`: Program's token account (PDA)
 
-// Toggle pause
-await program.methods
-  .togglePause()
-  .accounts({
-    state: statePDA,
-    admin: adminWallet.publicKey,
-  })
-  .rpc();
+### Raydium Pool Accounts
+- `ammId`: Raydium pool address
+- `ammAuthority`: Pool authority
+- `sourceInfo`: Source token pool info
+- `destinationInfo`: Destination token pool info
+- `poolTokenCoinAccount`: Pool coin token account
+- `poolTokenPcAccount`: Pool PC token account
 
-// Emergency withdraw
-await program.methods
-  .emergencyWithdraw(new BN(amount))
-  .accounts({
-    state: statePDA,
-    admin: adminWallet.publicKey,
-    taxWallet: taxWalletPDA,
-    adminTokenAccount: adminATA,
-  })
-  .rpc();
-```
+### Serum Market Accounts
+- `serumProgramId`: Serum DEX program
+- `serumMarket`: Market address
+- `serumBids`: Bids account
+- `serumAsks`: Asks account
+- `serumEventQueue`: Event queue
+- `serumCoinVaultAccount`: Coin vault
+- `serumPcVaultAccount`: PC vault
+- `serumVaultSigner`: Vault signer
+
+### System Accounts
+- `tokenProgram`: Token-2022 Program
+- `associatedTokenProgram`: Associated Token Program
+- `systemProgram`: System Program
 
 ## Events
 
-- ProgramInitialized
-- FeeUpdated
-- ProgramPauseToggled
-- TaxCollected
-- SwapCompleted
-- EmergencyWithdraw
+### SwapCompleted
+```typescript
+{
+    tokenAmount: u64,    // Amount of tokens swapped
+    solAmount: u64,      // Amount of SOL received
+    receiver: PublicKey, // Receiver's address
+    timestamp: i64       // Timestamp of swap
+}
+```
 
 ## Error Codes
 
-- InvalidAmount
-- AmountOverflow
-- InvalidFee
-- SwapExpired
-- ProgramPaused
-- InsufficientBalance
+- `InvalidAmount`: Amount must be greater than 0
 
 ## Security Considerations
 
-1. Fee Limits
-   - Maximum fee: 10% (1000 basis points)
-   - Minimum transfer: 1000 tokens
+1. **Slippage Protection**
+   - Use `minimum_sol_amount` to protect against unfavorable swaps
+   - Calculate appropriate slippage based on market conditions
 
-2. Access Control
-   - Admin-only functions for critical operations
-   - PDA-based tax wallet
+2. **Account Validation**
+   - All Raydium and Serum accounts must match the pool
+   - Token accounts must belong to correct owners
 
-3. Safety Checks
-   - Amount validation
-   - Deadline checks for swaps
-   - Balance verification
+3. **Token Program**
+   - Contract uses Token-2022 program
+   - Ensure token accounts are created with correct program
 
-## Testing
+## Development
 
-Run the test suite:
+### Testing
 ```bash
 anchor test
 ```
 
-## Deployment
-
-1. Configure your Anchor.toml:
-```toml
-[programs.devnet]
-swap = "your_program_id"
+### Building
+```bash
+anchor build
 ```
 
-2. Deploy to devnet:
+### Deploying
 ```bash
-anchor deploy --provider.cluster devnet
-```
-
-3. Initialize the program:
-```bash
-anchor run initialize
+anchor deploy
 ```
